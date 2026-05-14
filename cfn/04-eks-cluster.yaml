@@ -1,0 +1,156 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  GPI Tracker - EKS Cluster Stack (v1.35)
+  EKS Cluster | VPC CNI | CoreDNS | Kube-Proxy | Pod Identity Agent | Pod Identity Associations
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: gpi-tracker
+  KubernetesVersion:
+    Type: String
+    Default: '1.35'
+
+Resources:
+  # ── EKS Cluster ──────────────────────────────────────────────────────────────
+  EKSCluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      Name: !Sub '${ProjectName}-cluster'
+      Version: !Ref KubernetesVersion
+      RoleArn: !ImportValue
+        'Fn::Sub': '${ProjectName}-EKSClusterRoleArn'
+      AccessConfig:
+        AuthenticationMode: API_AND_CONFIG_MAP
+        BootstrapClusterCreatorAdminPermissions: true
+      ResourcesVpcConfig:
+        SubnetIds:
+          - !ImportValue
+            'Fn::Sub': '${ProjectName}-PrivateSubnet1Id'
+          - !ImportValue
+            'Fn::Sub': '${ProjectName}-PrivateSubnet2Id'
+          - !ImportValue
+            'Fn::Sub': '${ProjectName}-PublicSubnet1Id'
+          - !ImportValue
+            'Fn::Sub': '${ProjectName}-PublicSubnet2Id'
+        SecurityGroupIds:
+          - !ImportValue
+            'Fn::Sub': '${ProjectName}-EKSClusterSecurityGroupId'
+        EndpointPublicAccess: true
+        EndpointPrivateAccess: true
+      KubernetesNetworkConfig:
+        IpFamily: ipv4
+      Logging:
+        ClusterLogging:
+          EnabledTypes:
+            - Type: api
+            - Type: audit
+            - Type: authenticator
+            - Type: controllerManager
+            - Type: scheduler
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Name
+          Value: !Sub '${ProjectName}-cluster'
+
+  # ── Add-ons ───────────────────────────────────────────────────────────────────
+  VPCCNIAddon:
+    Type: AWS::EKS::Addon
+    DependsOn: EKSCluster
+    Properties:
+      ClusterName: !Ref EKSCluster
+      AddonName: vpc-cni
+      ResolveConflicts: OVERWRITE
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  CoreDNSAddon:
+    Type: AWS::EKS::Addon
+    DependsOn: EKSCluster
+    Properties:
+      ClusterName: !Ref EKSCluster
+      AddonName: coredns
+      ResolveConflicts: OVERWRITE
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  KubeProxyAddon:
+    Type: AWS::EKS::Addon
+    DependsOn: EKSCluster
+    Properties:
+      ClusterName: !Ref EKSCluster
+      AddonName: kube-proxy
+      ResolveConflicts: OVERWRITE
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  EKSPodIdentityAgentAddon:
+    Type: AWS::EKS::Addon
+    DependsOn: EKSCluster
+    Properties:
+      ClusterName: !Ref EKSCluster
+      AddonName: eks-pod-identity-agent
+      ResolveConflicts: OVERWRITE
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  EBSCSIDriverAddon:
+    Type: AWS::EKS::Addon
+    DependsOn: EKSCluster
+    Properties:
+      ClusterName: !Ref EKSCluster
+      AddonName: aws-ebs-csi-driver
+      ResolveConflicts: OVERWRITE
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # ── Pod Identity Associations ─────────────────────────────────────────────────
+  GpiTrackerPodIdentityAssociation:
+    Type: AWS::EKS::PodIdentityAssociation
+    DependsOn:
+      - EKSCluster
+      - EKSPodIdentityAgentAddon
+    Properties:
+      ClusterName: !Ref EKSCluster
+      Namespace: gpi-tracker
+      ServiceAccount: gpi-tracker-sa
+      RoleArn: !ImportValue
+        'Fn::Sub': '${ProjectName}-GpiTrackerPodRoleArn'
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  ALBControllerPodIdentityAssociation:
+    Type: AWS::EKS::PodIdentityAssociation
+    DependsOn:
+      - EKSCluster
+      - EKSPodIdentityAgentAddon
+    Properties:
+      ClusterName: !Ref EKSCluster
+      Namespace: kube-system
+      ServiceAccount: aws-load-balancer-controller
+      RoleArn: !ImportValue
+        'Fn::Sub': '${ProjectName}-ALBControllerRoleArn'
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+Outputs:
+  ClusterName:
+    Value: !Ref EKSCluster
+    Export:
+      Name: !Sub '${ProjectName}-ClusterName'
+  ClusterEndpoint:
+    Value: !GetAtt EKSCluster.Endpoint
+    Export:
+      Name: !Sub '${ProjectName}-ClusterEndpoint'
+  ClusterArn:
+    Value: !GetAtt EKSCluster.Arn
+    Export:
+      Name: !Sub '${ProjectName}-ClusterArn'

@@ -1,0 +1,34 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  GPI Tracker - ALB Controller IAM Stack
+  Note: The actual ALB is provisioned by the AWS Load Balancer Controller via Helm.
+  This stack documents IAM resources used (already created in 02-iam.yaml).
+  Use this file as reference; the actual LBC install is done in deploy-k8s.sh.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: gpi-tracker
+
+# This stack serves as documentation for the ALB setup.
+# The AWS Load Balancer Controller is installed via Helm in deploy-k8s.sh.
+# The IAM role and policy are defined in 02-iam.yaml.
+# The Pod Identity Association is defined in 04-eks-cluster.yaml.
+#
+# ALB Configuration:
+#   - Scheme: internet-facing
+#   - Target: ClusterIP service on port 8501
+#   - Health check: /healthz (Streamlit built-in)
+#   - Targets: 3 gpi-tracker pods via NodePort → ClusterIP
+
+Outputs:
+  ALBControllerHelmCommand:
+    Description: Helm command to install AWS Load Balancer Controller
+    Value: !Sub >-
+      helm install aws-load-balancer-controller eks/aws-load-balancer-controller
+      -n kube-system
+      --set clusterName=${ProjectName}-cluster
+      --set serviceAccount.create=false
+      --set serviceAccount.name=aws-load-balancer-controller
+      --set region=${AWS::Region}
+      --set vpcId=<VPC_ID>

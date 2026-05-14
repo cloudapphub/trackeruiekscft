@@ -1,0 +1,55 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  GPI Tracker - ECR Stack
+  Private ECR repository with image scanning and lifecycle policy
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: gpi-tracker
+
+Resources:
+  ECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub '${ProjectName}/ui'
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: MUTABLE
+      EncryptionConfiguration:
+        EncryptionType: AES256
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Keep last 10 images",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 10
+                },
+                "action": { "type": "expire" }
+              }
+            ]
+          }
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Name
+          Value: !Sub '${ProjectName}-ecr'
+
+Outputs:
+  ECRRepositoryUri:
+    Value: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ProjectName}/ui'
+    Export:
+      Name: !Sub '${ProjectName}-ECRRepositoryUri'
+  ECRRepositoryArn:
+    Value: !GetAtt ECRRepository.Arn
+    Export:
+      Name: !Sub '${ProjectName}-ECRRepositoryArn'
+  ECRRepositoryName:
+    Value: !Ref ECRRepository
+    Export:
+      Name: !Sub '${ProjectName}-ECRRepositoryName'

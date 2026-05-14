@@ -1,0 +1,193 @@
+---
+# Fluentd ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluentd-config
+  namespace: kube-system
+  labels:
+    app: fluentd
+data:
+  fluent.conf: |
+    # ── Input: Kubernetes container logs ───────────────────────────────────────
+    <source>
+      @type tail
+      path /var/log/containers/*gpi-tracker*.log
+      pos_file /var/log/fluentd-containers.log.pos
+      tag kubernetes.gpi-tracker.*
+      read_from_head true
+      <parse>
+        @type json
+        time_format %Y-%m-%dT%H:%M:%S.%NZ
+      </parse>
+    </source>
+
+    # ── System logs ────────────────────────────────────────────────────────────
+    <source>
+      @type tail
+      path /var/log/containers/*kube-system*.log
+      pos_file /var/log/fluentd-system.log.pos
+      tag kubernetes.system.*
+      read_from_head false
+      <parse>
+        @type json
+        time_format %Y-%m-%dT%H:%M:%S.%NZ
+      </parse>
+    </source>
+
+    # ── Kubernetes metadata enrichment ─────────────────────────────────────────
+    <filter kubernetes.**>
+      @type kubernetes_metadata
+      @id filter_kube_metadata
+      kubernetes_url "#{ENV['KUBERNETES_SERVICE_HOST']}:#{ENV['KUBERNETES_SERVICE_PORT']}"
+      cache_size 1000
+      watch false
+      skip_labels false
+      skip_container_metadata false
+      skip_namespace_metadata false
+    </filter>
+
+    # ── Output: CloudWatch Logs (application) ──────────────────────────────────
+    <match kubernetes.gpi-tracker.**>
+      @type cloudwatch_logs
+      region "#{ENV['AWS_REGION']}"
+      log_group_name /eks/gpi-tracker/application
+      log_stream_name_key stream_name
+      auto_create_stream true
+      remove_log_stream_name_key true
+      <buffer>
+        @type file
+        path /var/log/fluentd-buffers/application
+        flush_mode interval
+        retry_type exponential_backoff
+        flush_interval 5s
+        retry_forever false
+        retry_max_interval 30
+        chunk_limit_size 2M
+        queue_limit_length 8
+        overflow_action block
+      </buffer>
+    </match>
+
+    # ── Output: CloudWatch Logs (system) ──────────────────────────────────────
+    <match kubernetes.system.**>
+      @type cloudwatch_logs
+      region "#{ENV['AWS_REGION']}"
+      log_group_name /eks/gpi-tracker/system
+      log_stream_name_key stream_name
+      auto_create_stream true
+      remove_log_stream_name_key true
+      <buffer>
+        @type file
+        path /var/log/fluentd-buffers/system
+        flush_mode interval
+        flush_interval 10s
+        chunk_limit_size 2M
+        queue_limit_length 8
+        overflow_action block
+      </buffer>
+    </match>
+---
+# Fluentd DaemonSet
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fluentd
+  namespace: kube-system
+  labels:
+    app: fluentd
+    app.kubernetes.io/name: fluentd
+    app.kubernetes.io/component: log-aggregator
+spec:
+  selector:
+    matchLabels:
+      app: fluentd
+  template:
+    metadata:
+      labels:
+        app: fluentd
+    spec:
+      serviceAccountName: fluentd-sa
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - operator: Exists
+          effect: NoExecute
+        - operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: fluentd
+          image: fluent/fluentd-kubernetes-daemonset:v1.16-debian-cloudwatch-1
+          env:
+            - name: AWS_REGION
+              value: us-east-1
+            - name: FLUENT_CLOUDWATCH_LOG_GROUP
+              value: /eks/gpi-tracker/application
+          resources:
+            limits:
+              memory: 512Mi
+              cpu: 200m
+            requests:
+              memory: 256Mi
+              cpu: 100m
+          volumeMounts:
+            - name: varlog
+              mountPath: /var/log
+            - name: varlibdockercontainers
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+            - name: fluentd-config
+              mountPath: /fluentd/etc/fluent.conf
+              subPath: fluent.conf
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: varlog
+          hostPath:
+            path: /var/log
+        - name: varlibdockercontainers
+          hostPath:
+            path: /var/lib/docker/containers
+        - name: fluentd-config
+          configMap:
+            name: fluentd-config
+---
+# Fluentd ServiceAccount
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fluentd-sa
+  namespace: kube-system
+  labels:
+    app: fluentd
+---
+# Fluentd ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: fluentd
+  labels:
+    app: fluentd
+rules:
+  - apiGroups: [""]
+    resources:
+      - pods
+      - namespaces
+      - nodes
+    verbs: ["get", "list", "watch"]
+---
+# Fluentd ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: fluentd
+  labels:
+    app: fluentd
+roleRef:
+  kind: ClusterRole
+  name: fluentd
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+  - kind: ServiceAccount
+    name: fluentd-sa
+    namespace: kube-system

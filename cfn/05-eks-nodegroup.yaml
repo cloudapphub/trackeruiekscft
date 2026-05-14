@@ -1,0 +1,89 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  GPI Tracker - EKS Managed Node Group
+  3x t3.medium nodes in private subnets | IMDSv2 enforced | Launch Template
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: gpi-tracker
+  NodeInstanceType:
+    Type: String
+    Default: t3.medium
+  NodeDesiredSize:
+    Type: Number
+    Default: 3
+  NodeMinSize:
+    Type: Number
+    Default: 2
+  NodeMaxSize:
+    Type: Number
+    Default: 5
+
+Resources:
+  # ── Launch Template (IMDSv2 enforced) ────────────────────────────────────────
+  NodeLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub '${ProjectName}-node-lt'
+      LaunchTemplateData:
+        MetadataOptions:
+          HttpTokens: required
+          HttpPutResponseHopLimit: 2
+          HttpEndpoint: enabled
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeSize: 50
+              VolumeType: gp3
+              Encrypted: true
+              DeleteOnTermination: true
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: !Sub '${ProjectName}-node'
+              - Key: Project
+                Value: !Ref ProjectName
+
+  # ── Managed Node Group ───────────────────────────────────────────────────────
+  EKSNodeGroup:
+    Type: AWS::EKS::Nodegroup
+    Properties:
+      ClusterName: !ImportValue
+        'Fn::Sub': '${ProjectName}-ClusterName'
+      NodegroupName: !Sub '${ProjectName}-nodegroup'
+      NodeRole: !ImportValue
+        'Fn::Sub': '${ProjectName}-EKSNodeRoleArn'
+      Subnets:
+        - !ImportValue
+          'Fn::Sub': '${ProjectName}-PrivateSubnet1Id'
+        - !ImportValue
+          'Fn::Sub': '${ProjectName}-PrivateSubnet2Id'
+      LaunchTemplate:
+        Id: !Ref NodeLaunchTemplate
+        Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
+      InstanceTypes:
+        - !Ref NodeInstanceType
+      ScalingConfig:
+        MinSize: !Ref NodeMinSize
+        MaxSize: !Ref NodeMaxSize
+        DesiredSize: !Ref NodeDesiredSize
+      AmiType: AL2_x86_64
+      CapacityType: ON_DEMAND
+      Labels:
+        role: worker
+        project: !Ref ProjectName
+      Tags:
+        Project: !Ref ProjectName
+        Name: !Sub '${ProjectName}-nodegroup'
+
+Outputs:
+  NodeGroupName:
+    Value: !Ref EKSNodeGroup
+    Export:
+      Name: !Sub '${ProjectName}-NodeGroupName'
+  NodeGroupArn:
+    Value: !GetAtt EKSNodeGroup.Arn
+    Export:
+      Name: !Sub '${ProjectName}-NodeGroupArn'

@@ -1,0 +1,68 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  GPI Tracker - CloudWatch Logs Stack
+  Log groups for EKS control plane, application, and Fluentd
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: gpi-tracker
+  LogRetentionDays:
+    Type: Number
+    Default: 30
+    AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 120, 180, 365]
+
+Resources:
+  # ── Application Log Group ─────────────────────────────────────────────────────
+  AppLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    Properties:
+      LogGroupName: !Sub '/eks/${ProjectName}/application'
+      RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # ── System Log Group ──────────────────────────────────────────────────────────
+  SystemLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    Properties:
+      LogGroupName: !Sub '/eks/${ProjectName}/system'
+      RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # ── Dataplane Log Group ───────────────────────────────────────────────────────
+  DataplaneLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    Properties:
+      LogGroupName: !Sub '/eks/${ProjectName}/dataplane'
+      RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # ── Host Log Group ────────────────────────────────────────────────────────────
+  HostLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    Properties:
+      LogGroupName: !Sub '/eks/${ProjectName}/host'
+      RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+Outputs:
+  AppLogGroupName:
+    Value: !Ref AppLogGroup
+    Export:
+      Name: !Sub '${ProjectName}-AppLogGroupName'
+  AppLogGroupArn:
+    Value: !GetAtt AppLogGroup.Arn
+    Export:
+      Name: !Sub '${ProjectName}-AppLogGroupArn'

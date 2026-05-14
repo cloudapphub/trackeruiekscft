@@ -1,0 +1,67 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  GPI Tracker - DynamoDB Stack
+  GpiTrackerRequests table | PAY_PER_REQUEST | PITR | TTL
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: gpi-tracker
+  TableName:
+    Type: String
+    Default: GpiTrackerRequests
+
+Resources:
+  GpiTrackerTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref TableName
+      BillingMode: PAY_PER_REQUEST
+      TableClass: STANDARD
+      DeletionProtectionEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+        SSEType: KMS
+      AttributeDefinitions:
+        - AttributeName: uetr
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+      KeySchema:
+        - AttributeName: uetr
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: StatusIndex
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Name
+          Value: !Ref TableName
+
+Outputs:
+  TableName:
+    Value: !Ref GpiTrackerTable
+    Export:
+      Name: !Sub '${ProjectName}-DynamoDBTableName'
+  TableArn:
+    Value: !GetAtt GpiTrackerTable.Arn
+    Export:
+      Name: !Sub '${ProjectName}-DynamoDBTableArn'
