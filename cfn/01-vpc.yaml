@@ -231,11 +231,6 @@ Resources:
         - IpProtocol: tcp
           FromPort: 443
           ToPort: 443
-          SourceSecurityGroupId: !Ref NodeSecurityGroup
-          Description: kubelet to API server
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
           SourceSecurityGroupId: !Ref ALBSecurityGroup
           Description: ALB controller to API server
       SecurityGroupEgress:
@@ -259,16 +254,6 @@ Resources:
           ToPort: 8501
           SourceSecurityGroupId: !Ref ALBSecurityGroup
           Description: Streamlit from ALB
-        - IpProtocol: tcp
-          FromPort: 1025
-          ToPort: 65535
-          SourceSecurityGroupId: !Ref EKSClusterSecurityGroup
-          Description: Cluster to nodes
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          SourceSecurityGroupId: !Ref EKSClusterSecurityGroup
-          Description: Cluster to nodes HTTPS
       SecurityGroupEgress:
         - IpProtocol: '-1'
           CidrIp: '0.0.0.0/0'
@@ -277,6 +262,37 @@ Resources:
           Value: !Sub '${ProjectName}-node-sg'
         - Key: !Sub 'kubernetes.io/cluster/${ProjectName}-cluster'
           Value: owned
+
+  # ── Cross-SG ingress rules (avoids circular dependency) ────────────────────
+  ClusterIngressFromNodes:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref EKSClusterSecurityGroup
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      SourceSecurityGroupId: !Ref NodeSecurityGroup
+      Description: kubelet to API server
+
+  NodeIngressFromCluster:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref NodeSecurityGroup
+      IpProtocol: tcp
+      FromPort: 1025
+      ToPort: 65535
+      SourceSecurityGroupId: !Ref EKSClusterSecurityGroup
+      Description: Cluster to nodes
+
+  NodeIngressFromClusterHTTPS:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref NodeSecurityGroup
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      SourceSecurityGroupId: !Ref EKSClusterSecurityGroup
+      Description: Cluster to nodes HTTPS
 
   NodeToNodeIngress:
     Type: AWS::EC2::SecurityGroupIngress
