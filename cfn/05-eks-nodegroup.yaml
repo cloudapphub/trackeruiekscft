@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   GPI Tracker - EKS Managed Node Group
-  3x t3.medium nodes in private subnets | IMDSv2 enforced | Launch Template
+  3x t3.small nodes in private subnets | IMDSv2 enforced | Launch Template
 
 Parameters:
   ProjectName:
@@ -9,7 +9,7 @@ Parameters:
     Default: gpi-tracker
   NodeInstanceType:
     Type: String
-    Default: t3.medium
+    Default: t3.small
   NodeDesiredSize:
     Type: Number
     Default: 3
@@ -69,7 +69,7 @@ Resources:
         MinSize: !Ref NodeMinSize
         MaxSize: !Ref NodeMaxSize
         DesiredSize: !Ref NodeDesiredSize
-      AmiType: AL2_x86_64
+      AmiType: AL2023_x86_64_STANDARD
       CapacityType: ON_DEMAND
       Labels:
         role: worker
