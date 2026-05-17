@@ -75,7 +75,7 @@ aws cloudformation deploy \
 ```
 **Creates:** EKS 1.35 cluster, add-ons (VPC CNI, CoreDNS, kube-proxy, **eks-pod-identity-agent**, EBS CSI), Pod Identity Associations for app + ALB controller.
 
-### 1.5 Node Group Stack ⏱️ ~5 min
+### 1.5 Node Group Stack ⏱️ ~5–10 min
 ```bash
 aws cloudformation deploy \
   --template-file cfn/05-eks-nodegroup.yaml \
@@ -84,7 +84,63 @@ aws cloudformation deploy \
   --capabilities CAPABILITY_IAM \
   --region ${AWS_REGION}
 ```
-**Creates:** Managed node group with 3× t3.medium in private subnets. IMDSv2 enforced, 50GB gp3 encrypted EBS.
+**Creates:** Managed node group with 3× t3.small in private subnets. IMDSv2 enforced, 50GB gp3 encrypted EBS.
+
+### 1.5.1 Fix EBS CSI Driver (if Degraded)
+
+After nodes are running, check the EBS CSI Driver status. If it shows `DEGRADED`, restart the controller so it picks up the Pod Identity credentials created in step 1.4.
+
+```bash
+# Check status
+EBS_STATUS=$(aws eks describe-addon \
+  --cluster-name ${PROJECT_NAME}-cluster \
+  --addon-name aws-ebs-csi-driver \
+  --query 'addon.status' --output text \
+  --region ${AWS_REGION})
+
+echo "EBS CSI Driver status: ${EBS_STATUS}"
+
+# Restart only if degraded
+if [ "${EBS_STATUS}" = "DEGRADED" ]; then
+  echo "Restarting EBS CSI controller..."
+  aws eks update-kubeconfig --region ${AWS_REGION} --name ${PROJECT_NAME}-cluster
+  kubectl rollout restart deployment ebs-csi-controller -n kube-system
+  echo "Waiting 60s for controller to stabilize..."
+  sleep 60
+  # Verify
+  aws eks describe-addon \
+    --cluster-name ${PROJECT_NAME}-cluster \
+    --addon-name aws-ebs-csi-driver \
+    --query 'addon.{Status:status,Health:health}' \
+    --output json --region ${AWS_REGION}
+else
+  echo "EBS CSI Driver is healthy — no action needed."
+fi
+```
+
+**PowerShell equivalent:**
+```powershell
+$EBS_STATUS = (aws eks describe-addon `
+  --cluster-name "$env:PROJECT_NAME-cluster" `
+  --addon-name "aws-ebs-csi-driver" `
+  --query "addon.status" --output text `
+  --region $env:AWS_REGION --profile gpi-tracker)
+
+Write-Host "EBS CSI Driver status: $EBS_STATUS"
+
+if ($EBS_STATUS -eq "DEGRADED") {
+  Write-Host "Restarting EBS CSI controller..."
+  kubectl rollout restart deployment ebs-csi-controller -n kube-system
+  Start-Sleep -Seconds 60
+  aws eks describe-addon `
+    --cluster-name "$env:PROJECT_NAME-cluster" `
+    --addon-name "aws-ebs-csi-driver" `
+    --query "addon.{Status:status,Health:health}" `
+    --output json --region $env:AWS_REGION --profile gpi-tracker
+} else {
+  Write-Host "EBS CSI Driver is healthy - no action needed."
+}
+```
 
 ### 1.6 DynamoDB Stack
 ```bash

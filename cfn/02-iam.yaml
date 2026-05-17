@@ -226,6 +226,27 @@ Resources:
       Roles:
         - !Ref EKSNodeRole
 
+  # ── EBS CSI Driver Pod Identity Role ────────────────────────────────────────
+  EBSCSIDriverRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-ebs-csi-role'
+      Description: EKS Pod Identity role for EBS CSI Driver
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: pods.eks.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+              - 'sts:TagSession'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
 Outputs:
   EKSClusterRoleArn:
     Value: !GetAtt EKSClusterRole.Arn
@@ -243,3 +264,7 @@ Outputs:
     Value: !GetAtt ALBControllerRole.Arn
     Export:
       Name: !Sub '${ProjectName}-ALBControllerRoleArn'
+  EBSCSIDriverRoleArn:
+    Value: !GetAtt EBSCSIDriverRole.Arn
+    Export:
+      Name: !Sub '${ProjectName}-EBSCSIDriverRoleArn'

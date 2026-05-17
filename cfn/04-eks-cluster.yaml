@@ -141,6 +141,22 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
+  EBSCSIPodIdentityAssociation:
+    Type: AWS::EKS::PodIdentityAssociation
+    DependsOn:
+      - EKSCluster
+      - EKSPodIdentityAgentAddon
+      - EBSCSIDriverAddon
+    Properties:
+      ClusterName: !Ref EKSCluster
+      Namespace: kube-system
+      ServiceAccount: ebs-csi-controller-sa
+      RoleArn: !ImportValue
+        'Fn::Sub': '${ProjectName}-EBSCSIDriverRoleArn'
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
 Outputs:
   ClusterName:
     Value: !Ref EKSCluster
