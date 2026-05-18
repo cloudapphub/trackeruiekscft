@@ -69,7 +69,7 @@ Resources:
         MinSize: !Ref NodeMinSize
         MaxSize: !Ref NodeMaxSize
         DesiredSize: !Ref NodeDesiredSize
-      AmiType: AL2_x86_64
+      AmiType: AL2023_x86_64_STANDARD
       CapacityType: ON_DEMAND
       Labels:
         role: worker
