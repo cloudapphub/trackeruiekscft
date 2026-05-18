@@ -35,7 +35,7 @@ spec:
       containers:
         - name: gpi-tracker
           # Replace ACCOUNT_ID and REGION with actual values, or use the build-push.sh output
-          image: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/gpi-tracker/ui:latest
+          image: 142966787483.dkr.ecr.us-east-1.amazonaws.com/gpi-tracker/ui:latest
           imagePullPolicy: Always
           ports:
             - name: http

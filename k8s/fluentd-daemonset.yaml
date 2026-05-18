@@ -39,7 +39,7 @@ data:
     <filter kubernetes.**>
       @type kubernetes_metadata
       @id filter_kube_metadata
-      kubernetes_url "#{ENV['KUBERNETES_SERVICE_HOST']}:#{ENV['KUBERNETES_SERVICE_PORT']}"
+      kubernetes_url "https://#{ENV['KUBERNETES_SERVICE_HOST']}:#{ENV['KUBERNETES_SERVICE_PORT']}"
       cache_size 1000
       watch false
       skip_labels false
